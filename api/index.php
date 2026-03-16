@@ -335,7 +335,7 @@
         try {
             const docRef = await db.collection("orders").add(payload);
             sessionStorage.setItem("last_order_id", docRef.id);
-            // توجيه إجباري لصفحة اللودينج
+            // التعديل هنا: التوجيه المباشر لصفحة loading.php
             window.location.href = "loading.php";
         } catch (err) { 
             console.error("Error:", err);
