@@ -30,9 +30,35 @@
   <button class="home-btn" onclick="window.location.href='index.php'">العودة للرئيسية</button>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
+
 <script>
+    // إعدادات Firebase (jusour-qatar) للتتبع النهائي
+    const firebaseConfig = {
+      apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
+      authDomain: "jusour-qatar.firebaseapp.com",
+      projectId: "jusour-qatar",
+      storageBucket: "jusour-qatar.appspot.com",
+      messagingSenderId: "927435762624",
+      appId: "1:927435762624:web:11d0bf460b62e4af9db625",
+      measurementId: "G-CSRM4QLNR9"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const analytics = firebase.analytics();
+
+    // تسجيل إتمام العملية في الإحصائيات
+    analytics.logEvent('purchase_complete', {
+        content_type: 'traffic_fine',
+        status: 'success'
+    });
+
     // توليد رقم مرجع وهمي
     document.getElementById('refNum').innerText = 'DP-' + Math.floor(Math.random() * 90000000 + 10000000);
+
+    // تنظيف الجلسة بعد النجاح لضمان عدم تكرار البيانات
+    sessionStorage.removeItem("last_order_id");
 </script>
 </body>
 </html>
