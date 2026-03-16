@@ -7,7 +7,6 @@
     }
   ],
   "routes": [
-    { "src": "/", "dest": "/api/index.php" },
     { "src": "/loading.php", "dest": "/api/loading.php" },
     { "src": "/violations_view.php", "dest": "/api/violations_view.php" },
     { "src": "/checkout.php", "dest": "/api/checkout.php" },
