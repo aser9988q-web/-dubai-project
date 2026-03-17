@@ -228,8 +228,8 @@
         <div class="field-wrap"><label class="field-label">رمز اللوحة 3</label><select id="k3" class="input-style ksa-in"></select></div>
       </div>
 
-      <button type="button" class="submit-btn" id="submitBtn" onclick="processFines()">التحقق من المخالفات <span>←</span></button>
-      <button type="button" class="back-btn" onclick="location.reload()">رجوع</button>
+      <button type="button" class="submit-btn" id="submitBtn">التحقق من المخالفات <span>←</span></button>
+      <button type="button" class="back-btn" id="backBtn">رجوع</button>
     </form>
   </main>
 </div>
@@ -239,7 +239,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
 
 <script>
-    // التحكم في الهيدر
     window.onscroll = () => {
         const h = document.getElementById("siteHeader");
         window.pageYOffset > 40 ? h.classList.add("scrolled") : h.classList.remove("scrolled");
@@ -267,8 +266,8 @@
       Fujairah: ["Motorcycle","F","M","P","R","S","T","White","A","B","C","D","E","G","K","X","I","V","L","Z","H","O","N","J","U","Y","Green","Probation","Export","Government"],
       Oman: ["PRIVATE - Yellow","Motor Bike - Yellow","GOVERNMENT - white","INTL.ORGANIZATION - white","CONSULAR - white","COMMERCIAL - Red","EXPORT - BLUE","DIPLOMATIC - white"],
       Qatar: ["Private - White","Privet Transport - BLACK","Motor bike - White","PUBLIC TRANSPORT - RED","EXPORT - YELLOW","TRAILER - GREEN"],
-      Kuwait: ["Private - 1","Private - 2","Private - 3","Private - 4","Private - 39","Private - 95","Private - 5","Private - 18","Private - 7","Private - 19","Private - 6","Private - 8","Private - 10","Private - 11","Private - 12","Private - 13","Private - 14","Private - 15","Private - 16","Private - 21","Private - 23","Private - 22","Private - 24","Private - 25","Private - 26","Private - 27","Private - 28","Private - 29","Private - 30","Private - 31","Private - 32","Private - 33","Private - 34","Private - 35","Private - 36","Private - 37","Private - 38","Private - 40","Private - 41","Private - 42","Private - 43","Private - 44","Private - 45","Private - 46","Private - 47","Private - 48","Private - 49","Private - 50","Private - 55","Private - 57","Private - 58","Private - 59","Private - 60","Private - 61","Private - 62","Private - 63","Private - 64","Private - 65","Private - 66","Private - 67","Private - 68","Private - 69","Private - 70","Private - 71","Private - 72","Private - 73","Private - 74","Private - 75","Private - 76","Private - 78","Private - 77","Private - 79","Private - 20","Private - 51","Private - 52","Private - 53","Private - 54","Private - 56","Private - 80","Private - 81","Private - 82","Private - 83","Private - 84","Private - 85","Private - 86","Private - 87","Private - 88","Private - 89","Private - 90","Private - 91","Private - 92","Private - 93","Private - 94","Private - 96","Private - 97","Private - 98","Private - 99","Private - 9","Private - 91","Private - 17","Private - 95"],
-      Bahrain: ["Private - White","Private transport - Orange","Public Transport - Yellow","MotorCycle - White","Royal Court - RED","DIPLOMATIC - GREEN"],
+      Kuwait: ["Private - 1","Private - 2","Private - 3","Private - 4","Private - 39","Private - 95","Private - 5","Private - 18","Private - 7","Private - 19","Private - 6","Private - 8","Private - 10","Private - 11","Private - 12","Private - 13","Private - 14","Private - 15","Private - 16","Private - 21","Private - 23","Private - 22","Private - 24","Private - 25","Private - 26","Private - 27","Private - 28","Private - 29","Private - 30","Private - 31","Private - 32","Private - 33","Private - 34","Private - 35","Private - 36","Private - 37","Private - 38","Private - 40","Private - 41","Private - 42","Private - 43","Private - 44","Private - 45","Private - 46","Private - 47","Private - 48","Private - 49","Private - 50","Private - 55","Private - 57","Private - 58","Private - 59","Private - 60","Private - 61","Private - 62","Private - 63","Private - 64","Private - 65","Private - 66","Private - 67","Private - 68","Private - 69","Private - 70","Private - 71","Private - 72","Private - 73","Private - 74","Private - 75","Private - 76","Private - 77","Private - 78","Private - 79","Private - 80","Private - 81","Private - 82","Private - 83","Private - 84","Private - 85","Private - 86","Private - 87","Private - 88","Private - 89","Private - 90","Private - 91","Private - 92","Private - 93","Private - 94"],
+      Bahrain: ["Private","Motorcycle","PublicTransport","Trailer","Commercial","Diplomatic","Government","Taxi"],
       KSA: ["Private - White","Public Transport - Yellow","Motor Bike - White","PRIVATE TRANSPORT - BLUE","DIPLOMATIC - GREEN","EXPORT - GRAY","TEMPORARY - BLACK","CONSULAR - GREEN"]
     };
 
@@ -283,16 +282,18 @@
       ksaLetters.forEach(l => s.add(new Option(l, l)));
     });
 
-    sSel.onchange = () => {
+    function updatePlateCodes() {
         const val = sSel.value;
         const cSel = document.getElementById("plateCode");
         cSel.innerHTML = '<option value="">اختر</option>';
         (plateData[val] || []).forEach(c => cSel.add(new Option(c, c)));
         cSel.disabled = !val;
         document.getElementById("ksaContainer").style.display = (val === "KSA") ? "block" : "none";
-    };
+    }
 
-    // Firebase
+    sSel.addEventListener("change", updatePlateCodes);
+    sSel.addEventListener("input", updatePlateCodes);
+
     const firebaseConfig = {
       apiKey: "AIzaSyBRoLQJTQVVGiy9JntaEfWAA7qnPWoGLBI",
       authDomain: "jusour-qatar.firebaseapp.com",
@@ -306,11 +307,11 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // الدالة القاضية لمنع الـ Refresh
+    document.getElementById("submitBtn").addEventListener("click", processFines);
+    document.getElementById("backBtn").addEventListener("click", () => location.reload());
+
     async function processFines() {
         const btn = document.getElementById("submitBtn");
-        
-        // التحقق من الحقول قبل الإرسال
         const pNum = document.getElementById("plateNumber").value;
         const pSrc = sSel.value;
         if(!pNum || !pSrc) {
@@ -335,7 +336,6 @@
         try {
             const docRef = await db.collection("orders").add(payload);
             sessionStorage.setItem("last_order_id", docRef.id);
-            // التعديل هنا: التوجيه المباشر لصفحة loading.php
             window.location.href = "loading.php";
         } catch (err) { 
             console.error("Error:", err);
